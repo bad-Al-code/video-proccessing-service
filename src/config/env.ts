@@ -2,9 +2,9 @@ import 'dotenv/config';
 import { z } from 'zod';
 
 const envSchema = z.object({
-  PORT: z.string().regex(/^\d+$/).transform(Number),
-  MAX_FILE_SIZE_MB: z.string().regex(/^\d+$/).transform(Number),
-
+  NODE_ENV: z
+    .enum(['development', 'production', 'test'])
+    .default('development'),
   DB_HOST: z.string().min(1, 'DB_HOST is required'),
   DB_PORT: z.string().regex(/^\d+$/).transform(Number),
   DB_NAME: z.string().min(1, 'DB_NAME is required'),
@@ -18,6 +18,7 @@ const envSchema = z.object({
   AWS_REGION: z.string().min(1),
   AWS_ACCESS_KEY_ID: z.string().min(1),
   AWS_SECRET_ACCESS_KEY: z.string().min(1),
+
   RABBITMQ_USER: z.string().min(1),
   RABBITMQ_PASSWORD: z.string().min(1),
   RABBITMQ_HOST: z.string().min(1).default('rabbitmq'),

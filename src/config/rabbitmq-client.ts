@@ -3,6 +3,7 @@ import amqp, {
   Channel,
   ChannelModel,
 } from 'amqplib';
+
 import { ENV } from './env';
 
 const RMQ_USER = ENV.RABBITMQ_USER;
