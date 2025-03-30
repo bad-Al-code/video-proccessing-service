@@ -2,7 +2,7 @@ import { Channel, ConsumeMessage } from 'amqplib';
 import { connectRabbitMQ, getRabbitMQChannel } from '../config/rabbitmq-client';
 import { VIDEO_EVENTS_EXCHANGE } from '../config/constants';
 
-interface VideoUploadPayload {
+export interface VideoUploadPayload {
   videoId: string;
   s3Key: string;
   originalFilename: string;
