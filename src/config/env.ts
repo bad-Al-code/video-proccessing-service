@@ -12,7 +12,7 @@ const envSchema = z.object({
   DB_PASSWORD: z.string().min(1, 'DB_PASSWORD is required'),
   // DB_ROOT_PASSWORD: z.string().min(1, 'DB_ROOT_PASSWORD is required'),
 
-  DATABASE_URL: z.string(),
+  // DATABASE_URL: z.string(),
 
   AWS_S3_BUCKET_NAME: z.string().min(1),
   AWS_REGION: z.string().min(1),

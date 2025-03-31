@@ -12,6 +12,6 @@ COPY --from=build /app/dist ./dist
 COPY package.json package-lock.json ./
 # RUN npm ci --omit=dev
 RUN npm ci
-RUN apk update && apk add --no-cache ffmpeg
+# RUN apk update && apk add --no-cache ffmpeg
 
 CMD ["node", "dist/index.js"]
