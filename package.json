@@ -1,5 +1,5 @@
 {
-  "name": "video-proccessing-service",
+  "name": "video-processing-service",
   "version": "1.0.0",
   "main": "dist/index.js",
   "scripts": {
@@ -12,7 +12,7 @@
     "test:ci": "npx vitest --run",
     "test": "npx vitest",
     "lint": "npx eslint .",
-    "dev": "npx tsc && node dist/index.js",
+    "dev": "tsc-watch --onSuccess \"node dist/index.js\"",
     "start": "nodemon",
     "db:generate": "npx drizzle-kit generate",
     "db:migrate": "npx drizzle-kit migrate",
@@ -24,19 +24,17 @@
   "description": "",
   "dependencies": {
     "@aws-sdk/client-s3": "^3.777.0",
-    "@types/amqplib": "^0.10.7",
     "amqplib": "^0.10.7",
     "dotenv": "^16.4.7",
     "drizzle-orm": "^0.41.0",
     "fluent-ffmpeg": "^2.1.3",
-    "helmet": "^8.1.0",
     "mysql2": "^3.14.0",
-    "nodemon": "^3.1.9",
-    "ts-node": "^10.9.2",
-    "uuid": "^11.1.0",
     "zod": "^3.24.2"
   },
   "devDependencies": {
+    "@types/amqplib": "^0.10.7",
+    "nodemon": "^3.1.9",
+    "ts-node": "^10.9.2",
     "@eslint/js": "^9.23.0",
     "@types/eslint-plugin-security": "^3.0.0",
     "@types/fluent-ffmpeg": "^2.1.27",
