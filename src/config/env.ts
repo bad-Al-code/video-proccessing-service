@@ -10,8 +10,7 @@ const envSchema = z.object({
   DB_NAME: z.string().min(1),
   DB_USER: z.string().min(1),
   DB_PASSWORD: z.string().min(1),
-  DATABASE_URL: z.string().url().optional(),
-
+  DATABASE_URL: z.string(),
   AWS_S3_BUCKET_NAME: z.string().min(1),
   AWS_REGION: z.string().min(1),
   AWS_ACCESS_KEY_ID: z.string().min(1),
