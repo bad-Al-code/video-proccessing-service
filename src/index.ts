@@ -8,6 +8,7 @@ import {
   VIDEO_UPLOAD_COMPLETED_ROUTING_KEY,
 } from './config/constants';
 import { VideoProcessingConsumer } from './consumers/VideoProcessingConsumer';
+import { closeDbConnection } from './db';
 
 let consumer: VideoProcessingConsumer | null = null;
 
@@ -43,6 +44,8 @@ async function shutdown(exitCode = 0) {
   }
 
   await closeRabbitMQConnection();
+
+  await closeDbConnection();
 
   console.log('Shutdown complete.');
   process.exit(exitCode);
