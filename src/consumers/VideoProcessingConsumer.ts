@@ -1,6 +1,6 @@
 import { Channel, ConsumeMessage } from 'amqplib';
 import { getRabbitMQChannel } from '../config/rabbitmq-client';
-import { handleVideoUploadEvent } from '../handlers/videoProcessingHandler';
+import { handleVideoUploadEvent } from '../handlers/VideoProcessingHandler';
 
 export interface VideoUploadPayload {
   videoId: string;
