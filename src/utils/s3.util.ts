@@ -35,21 +35,51 @@ export async function downloadFromS3(
       `[S3] Downloading ${ContentLength ? (ContentLength / 1024 / 1024).toFixed(2) + ' MB' : 'unknown size'}...`,
     );
     const writer = createWriteStream(downloadPath);
+    console.log(
+      `[S3:Download:${key}] Write stream created. Setting up pipe...`,
+    );
 
-    await new Promise((resolve, reject) => {
-      Body.pipe(writer)
-        .on('finish', () => resolve)
-        .on('error', (err) => {
-          writer.close();
-          unlink(downloadPath).catch(() => {});
-          reject(err);
-        });
+    await new Promise<void>((resolve, reject) => {
+      console.log(
+        `[S3:Download:${key}] Inside Promise executor. Piping Body to writer...`,
+      );
+
+      writer.on('finish', () => {
+        console.log(`[S3:Download:${key}] Writer 'finish' event received.`);
+        resolve();
+      });
+
+      writer.on('error', (err) => {
+        console.error(
+          `[S3:Download:${key}] Writer 'error' event received:`,
+          err,
+        );
+        unlink(downloadPath).catch(() => {});
+        reject(err);
+      });
 
       Body.on('error', (err) => {
         writer.close();
         unlink(downloadPath).catch(() => {});
         reject(err);
       });
+
+      let bytesDownloaded = 0;
+      Body.on('data', (chunk) => {
+        bytesDownloaded += chunk.length;
+        console.log(
+          `[S3:Download:${key}] Received data chunk. Total: ${bytesDownloaded}`,
+        );
+      });
+
+      Body.on('end', () => {
+        console.log(
+          `[S3:Download:${key}] S3 Body 'end' event received. Total bytes: ${bytesDownloaded}`,
+        );
+      });
+
+      Body.pipe(writer);
+      console.log(`[S3:Download:${key}] Pipe initiated.`);
     });
 
     console.log(`[S3] Download complete: ${downloadPath}`);

@@ -8,6 +8,7 @@ RUN npm run build
 
 FROM node:alpine3.21 AS runtime
 WORKDIR /app 
+RUN apk update && apk add --no-cache ffmpeg
 COPY --from=build /app/dist ./dist
 COPY package.json package-lock.json ./
 # RUN npm ci --omit=dev
