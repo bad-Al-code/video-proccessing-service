@@ -38,7 +38,7 @@ export async function downloadFromS3(
 
     await new Promise((resolve, reject) => {
       Body.pipe(writer)
-        .on('finish', resolve)
+        .on('finish', () => resolve)
         .on('error', (err) => {
           writer.close();
           unlink(downloadPath).catch(() => {});
