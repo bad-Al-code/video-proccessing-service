@@ -1,5 +1,4 @@
 import { Channel, ConsumeMessage } from 'amqplib';
-
 import { getRabbitMQChannel } from '../config/rabbitmq-client';
 import { handleVideoUploadEvent } from '../handlers/videoProcessingHandler';
 
@@ -78,9 +77,9 @@ export class VideoProcessingConsumer {
 
     if (!this.channel) {
       console.error(
-        '[Consumer] Channel is null, cannot process message. Nacking with requeue.',
+        '[Consumer] Channel is null, cannot process message or nack.',
       );
-      msg.nack(true);
+
       return;
     }
 
@@ -104,6 +103,13 @@ export class VideoProcessingConsumer {
       console.log(`[Consumer] Processing videoId: ${payload.videoId}`);
       const success = await handleVideoUploadEvent(payload, msg);
 
+      if (!this.channel) {
+        console.error(
+          '[Consumer] Channel became null after processing, cannot ack/nack.',
+        );
+        return;
+      }
+
       if (success) {
         console.log(
           `[Consumer] Acknowledged message [${msg.fields.deliveryTag}] for videoId: ${payload.videoId}`,
@@ -122,7 +128,14 @@ export class VideoProcessingConsumer {
         error.message || error,
       );
       console.error('[Consumer] Message Content:', contentString);
-      this.channel.nack(msg, false, false);
+
+      if (this.channel) {
+        this.channel.nack(msg, false, false);
+      } else {
+        console.error(
+          `[Consumer] Channel is null, cannot nack message for videoId ${videoId} after error.`,
+        );
+      }
     }
   }
 
