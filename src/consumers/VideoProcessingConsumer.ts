@@ -1,4 +1,6 @@
 import { Channel, ConsumeMessage } from 'amqplib';
+
+import { logger } from '../config/logger';
 import { getRabbitMQChannel } from '../config/rabbitmq-client';
 import { handleVideoUploadEvent } from '../handlers/videoProcessingHandler';
 import {
@@ -25,32 +27,32 @@ export class VideoProcessingConsumer {
 
   async start(): Promise<void> {
     if (this.isRunning) {
-      console.warn('[Consumer] Already running.');
+      logger.warn('[Consumer] Already running.');
       return;
     }
 
     try {
-      console.log('[Consumer] Starting...');
+      logger.info('[Consumer] Starting...');
       this.channel = getRabbitMQChannel();
       if (!this.channel) {
         throw new Error('[Consumer] Cannot start without a RabbitMQ channel.');
       }
 
-      console.log(
+      logger.info(
         `[Consumer] Asserting Dead Letter Exchange '${VIDEO_PROCESSING_DLX}' (direct, durable)`,
       );
       await this.channel.assertExchange(VIDEO_PROCESSING_DLX, 'direct', {
         durable: true,
       });
 
-      console.log(
+      logger.info(
         `[Consumer] Asserting Dead Letter Queue '${VIDEO_PROCESSING_DLQ}' (durable)`,
       );
       const dlq = await this.channel.assertQueue(VIDEO_PROCESSING_DLQ, {
         durable: true,
       });
 
-      console.log(
+      logger.info(
         `[Consumer] Binding DLQ '${dlq.queue}' to DLX '${VIDEO_PROCESSING_DLX}' with binding key '${this.bindingKey}'`,
       );
       await this.channel.bindQueue(
@@ -59,7 +61,7 @@ export class VideoProcessingConsumer {
         this.bindingKey,
       );
 
-      console.log(
+      logger.info(
         `[Consumer] Asserting MAIN queue '${this.queueName}' (durable) with DLX configured`,
       );
       const q = await this.channel.assertQueue(this.queueName, {
@@ -70,22 +72,22 @@ export class VideoProcessingConsumer {
         },
       });
 
-      console.log(
+      logger.info(
         `[Consumer] Asserting MAIN exchange '${this.exchangeName}' (topic, durable)`,
       );
       await this.channel.assertExchange(this.exchangeName, 'topic', {
         durable: true,
       });
 
-      console.log(
+      logger.info(
         `[Consumer] Binding MAIN queue '${q.queue}' to exchange '${this.exchangeName}' with key '${this.bindingKey}'`,
       );
       await this.channel.bindQueue(q.queue, this.exchangeName, this.bindingKey);
 
       await this.channel.prefetch(1);
-      console.log('[Consumer] QoS prefetch set to 1.');
+      logger.info('[Consumer] QoS prefetch set to 1.');
 
-      console.log(
+      logger.info(
         `[Consumer] Waiting for messages on queue '${q.queue}'. To exit press CTRL+C`,
       );
       this.isRunning = true;
@@ -94,7 +96,7 @@ export class VideoProcessingConsumer {
         noAck: false,
       });
     } catch (error: any) {
-      console.error('[Consumer] Error starting consumer:', error.message);
+      logger.error('[Consumer] Error starting consumer:', error.message);
       this.isRunning = false;
       throw error;
     }
@@ -102,14 +104,14 @@ export class VideoProcessingConsumer {
 
   private async processMessage(msg: ConsumeMessage | null): Promise<void> {
     if (msg === null) {
-      console.warn(
+      logger.warn(
         '[Consumer] Received null message, queue might have been deleted or channel closed.',
       );
       return;
     }
 
     if (!this.channel) {
-      console.error(
+      logger.error(
         '[Consumer] Channel is null, cannot process message or nack.',
       );
 
@@ -120,7 +122,7 @@ export class VideoProcessingConsumer {
     const contentString = msg.content.toString();
 
     try {
-      console.log(
+      logger.info(
         `[Consumer] Received message [${msg.fields.deliveryTag}] RoutingKey: ${msg.fields.routingKey}`,
       );
       payload = JSON.parse(contentString) as VideoUploadPayload;
@@ -133,39 +135,39 @@ export class VideoProcessingConsumer {
         throw new Error('Invalid message payload structure.');
       }
 
-      console.log(`[Consumer] Processing videoId: ${payload.videoId}`);
+      logger.info(`[Consumer] Processing videoId: ${payload.videoId}`);
       const success = await handleVideoUploadEvent(payload, msg);
 
       if (!this.channel) {
-        console.error(
+        logger.error(
           '[Consumer] Channel became null after processing, cannot ack/nack.',
         );
         return;
       }
 
       if (success) {
-        console.log(
+        logger.info(
           `[Consumer] Acknowledged message [${msg.fields.deliveryTag}] for videoId: ${payload.videoId}`,
         );
         this.channel.ack(msg);
       } else {
-        console.warn(
+        logger.warn(
           `[Consumer] Handler failed for videoId: ${payload.videoId}. Rejecting [${msg.fields.deliveryTag}] (nack) without requeue.`,
         );
         this.channel.nack(msg, false, false);
       }
     } catch (error: any) {
       const videoId = payload?.videoId || 'unknown';
-      console.error(
+      logger.error(
         `[Consumer] Error processing message for videoId ${videoId} [${msg.fields.deliveryTag}]:`,
         error.message || error,
       );
-      console.error('[Consumer] Message Content:', contentString);
+      logger.error('[Consumer] Message Content:', contentString);
 
       if (this.channel) {
         this.channel.nack(msg, false, false);
       } else {
-        console.error(
+        logger.error(
           `[Consumer] Channel is null, cannot nack message for videoId ${videoId} after error.`,
         );
       }
@@ -174,6 +176,6 @@ export class VideoProcessingConsumer {
 
   stop() {
     this.isRunning = false;
-    console.log('[Consumer] Stopping...');
+    logger.info('[Consumer] Stopping...');
   }
 }

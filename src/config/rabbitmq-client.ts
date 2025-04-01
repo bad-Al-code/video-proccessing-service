@@ -4,6 +4,7 @@ import amqp, {
   ChannelModel,
 } from 'amqplib';
 import { ENV } from './env';
+import { logger } from './logger';
 
 const RMQ_USER = ENV.RABBITMQ_USER;
 const RMQ_PASS = ENV.RABBITMQ_PASSWORD;
@@ -22,7 +23,7 @@ let channelInstance: Channel | null = null;
 
 export async function connectRabbitMQ(): Promise<RabbitMQHandles> {
   if (connectionModelInstance && channelInstance) {
-    console.log(`Reusing existing RabbitMQ model and channel.`);
+    logger.info(`Reusing existing RabbitMQ model and channel.`);
     return { model: connectionModelInstance, channel: channelInstance };
   }
 
@@ -31,31 +32,31 @@ export async function connectRabbitMQ(): Promise<RabbitMQHandles> {
     connectionModelInstance = model;
 
     model.on('error', (err: Error) => {
-      console.error('RabbitMQ connection model error:', err.message);
+      logger.error('RabbitMQ connection model error:', err.message);
       connectionModelInstance = null;
       channelInstance = null;
     });
 
     model.on('close', () => {
-      console.warn('RabbitMQ connection model closed.');
+      logger.warn('RabbitMQ connection model closed.');
       connectionModelInstance = null;
       channelInstance = null;
     });
 
-    console.log('RabbitMQ connection model created!');
+    logger.info('RabbitMQ connection model created!');
 
     const channel: Channel = await model.createChannel();
     channelInstance = channel;
-    console.log(`RabbitMQ channel created`);
+    logger.info(`RabbitMQ channel created`);
 
     channel.on('error', (err: Error) => {
-      console.error('RabbitMQ channel model error:', err.message);
+      logger.error('RabbitMQ channel model error:', err.message);
       connectionModelInstance = null;
       channelInstance = null;
     });
 
     channel.on('close', () => {
-      console.warn('RabbitMQ channel model closed.');
+      logger.warn('RabbitMQ channel model closed.');
       connectionModelInstance = null;
       channelInstance = null;
     });
@@ -63,7 +64,7 @@ export async function connectRabbitMQ(): Promise<RabbitMQHandles> {
     return { model, channel };
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : String(error);
-    console.error('Failed to connect to RabbitMQ: ', errorMessage);
+    logger.error('Failed to connect to RabbitMQ: ', errorMessage);
 
     connectionModelInstance = null;
     channelInstance = null;
@@ -77,17 +78,17 @@ export async function closeRabbitMQConnection(): Promise<void> {
     if (channelInstance) {
       await channelInstance.close();
       channelInstance = null;
-      console.log('RabbitMQ channel closed.');
+      logger.info('RabbitMQ channel closed.');
     }
 
     if (connectionModelInstance) {
       await connectionModelInstance.close();
       connectionModelInstance = null;
-      console.log('RabbitMQ connection model closed.');
+      logger.info('RabbitMQ connection model closed.');
     }
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : String(error);
-    console.error('Error closing RabbitMQ resources:', errorMessage);
+    logger.error('Error closing RabbitMQ resources:', errorMessage);
     channelInstance = null;
     connectionModelInstance = null;
   } finally {

@@ -1,7 +1,9 @@
 import { S3Client } from '@aws-sdk/client-s3';
-import { ENV } from './env';
 
-console.log(`[S3] Initializing client for region: ${ENV.AWS_REGION}`);
+import { ENV } from './env';
+import { logger } from './logger';
+
+logger.info(`[S3] Initializing client for region: ${ENV.AWS_REGION}`);
 
 export const s3Client = new S3Client({
   region: ENV.AWS_REGION,
@@ -11,4 +13,4 @@ export const s3Client = new S3Client({
   },
 });
 
-console.log(`[S3] Client initialized.`);
+logger.info(`[S3] Client initialized.`);

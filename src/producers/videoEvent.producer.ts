@@ -1,9 +1,10 @@
 import { getRabbitMQChannel } from '../config/rabbitmq-client';
 import { VIDEO_EVENTS_EXCHANGE } from '../config/constants';
+import { logger } from '../config/logger';
 
 export class VideoEventProducer {
   constructor() {
-    console.log('[VideoEventProducer] Producer initialized.');
+    logger.info('[VideoEventProducer] Producer initialized.');
   }
 
   /**
@@ -19,7 +20,7 @@ export class VideoEventProducer {
     const channel = getRabbitMQChannel();
 
     if (!channel) {
-      console.error(
+      logger.error(
         `[VideoEventProducer] Cannot publish event, channel is not available. RoutingKey: ${routingKey}`,
       );
       return false;
@@ -40,24 +41,24 @@ export class VideoEventProducer {
       );
 
       if (sent) {
-        console.log(
+        logger.info(
           `[VideoEventProducer] Published event to exchange '${VIDEO_EVENTS_EXCHANGE}' [${routingKey}]:`,
           JSON.stringify(eventPayload).substring(0, 200) +
             (JSON.stringify(eventPayload).length > 200 ? '...' : ''),
         );
       } else {
-        console.warn(
+        logger.warn(
           `[VideoEventProducer] Failed to publish event [${routingKey}] (channel buffer full or closing?). Payload:`,
           eventPayload,
         );
       }
       return sent;
     } catch (error: any) {
-      console.error(
+      logger.error(
         `[VideoEventProducer] Error publishing event [${routingKey}]:`,
         error.message || error,
       );
-      console.error(`[VideoEventProducer] Payload:`, eventPayload);
+      logger.error(`[VideoEventProducer] Payload:`, eventPayload);
       return false;
     }
   }

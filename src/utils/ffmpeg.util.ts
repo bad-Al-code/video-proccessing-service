@@ -2,6 +2,8 @@ import Ffmpeg from 'fluent-ffmpeg';
 import path, { join } from 'node:path';
 import { mkdir } from 'node:fs/promises';
 
+import { logger } from '../config/logger';
+
 export interface TranscodeResult {
   outputPath: string;
   resolution: string;
@@ -47,7 +49,7 @@ export function transcodeToResolution(
     try {
       await mkdir(outputDir, { recursive: true });
 
-      console.log(
+      logger.info(
         `[FFMPEG:${videoId}] Starting transcode (${targetResolution}): ${inputPath} -> ${outputPath}`,
       );
 
@@ -57,19 +59,19 @@ export function transcodeToResolution(
         .audioCodec('aac')
         .size(targetSize)
         .on('start', (commandLine) => {
-          console.log(
+          logger.info(
             `[FFMPEG:${videoId}] Spawned Ffmpeg (${targetResolution}) command: ${commandLine}`,
           );
         })
         .on('progress', (progress) => {
           if (progress.percent) {
-            console.log(
+            logger.info(
               `[FFMPEG:${videoId}] Processing ${baseFilename}: ${progress.percent.toFixed(2)}% done`,
             );
           }
         })
         .on('end', (stdout, stderr) => {
-          console.log(
+          logger.info(
             `[FFMPEG:${videoId}] Transcoding (${targetResolution}) finished successfully: ${outputPath}`,
           );
           resolve({
@@ -79,11 +81,11 @@ export function transcodeToResolution(
           });
         })
         .on('error', (err, stdout, stderr) => {
-          console.error(
+          logger.error(
             `[FFMPEG:${videoId}] Error during transcoding (${targetResolution}) for ${outputPath}:`,
             err.message,
           );
-          console.error(`[FFMPEG:${videoId}] stderr:`, stderr);
+          logger.error(`[FFMPEG:${videoId}] stderr:`, stderr);
           reject(
             new Error(
               `FFmpeg transcoding (${targetResolution}) failed: ${err.message}`,
@@ -120,7 +122,7 @@ export function generateThumbnail(
     try {
       await mkdir(outputDir, { recursive: true });
 
-      console.log(
+      logger.info(
         `[FFMPEG:${videoId}] Generating thumbnail: ${inputPath} -> ${outputPath} at ${timeMark}`,
       );
 
@@ -132,13 +134,13 @@ export function generateThumbnail(
           size: '640x?',
         })
         .on('end', () => {
-          console.log(
+          logger.info(
             `[FFMPEG:${videoId}] Thumbnail generated successfully: ${outputPath}`,
           );
           resolve({ outputPath, s3Key: targetS3Key });
         })
         .on('error', (err) => {
-          console.error(
+          logger.error(
             `[FFMPEG:${videoId}] Error generating thumbnail for ${outputPath}:`,
             err.message,
           );

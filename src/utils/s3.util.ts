@@ -8,6 +8,7 @@ import {
 } from '@aws-sdk/client-s3';
 
 import { s3Client } from '../config/s3Client';
+import { logger } from '../config/logger';
 
 /**
  * Downloads an object from S3 to a local file path.
@@ -20,7 +21,7 @@ export async function downloadFromS3(
   key: string,
   downloadPath: string,
 ): Promise<void> {
-  console.log(
+  logger.info(
     `[S3] Attempting download: s3://${bucket}/${key} -> ${downloadPath}`,
   );
   try {
@@ -31,26 +32,26 @@ export async function downloadFromS3(
       throw new Error(`Failed to get readable stream for S3 object: ${key}`);
     }
 
-    console.log(
+    logger.info(
       `[S3] Downloading ${ContentLength ? (ContentLength / 1024 / 1024).toFixed(2) + ' MB' : 'unknown size'}...`,
     );
     const writer = createWriteStream(downloadPath);
-    console.log(
+    logger.info(
       `[S3:Download:${key}] Write stream created. Setting up pipe...`,
     );
 
     await new Promise<void>((resolve, reject) => {
-      console.log(
+      logger.info(
         `[S3:Download:${key}] Inside Promise executor. Piping Body to writer...`,
       );
 
       writer.on('finish', () => {
-        console.log(`[S3:Download:${key}] Writer 'finish' event received.`);
+        logger.info(`[S3:Download:${key}] Writer 'finish' event received.`);
         resolve();
       });
 
       writer.on('error', (err) => {
-        console.error(
+        logger.error(
           `[S3:Download:${key}] Writer 'error' event received:`,
           err,
         );
@@ -67,34 +68,34 @@ export async function downloadFromS3(
       let bytesDownloaded = 0;
       Body.on('data', (chunk) => {
         bytesDownloaded += chunk.length;
-        console.log(
+        logger.info(
           `[S3:Download:${key}] Received data chunk. Total: ${bytesDownloaded}`,
         );
       });
 
       Body.on('end', () => {
-        console.log(
+        logger.info(
           `[S3:Download:${key}] S3 Body 'end' event received. Total bytes: ${bytesDownloaded}`,
         );
       });
 
       Body.pipe(writer);
-      console.log(`[S3:Download:${key}] Pipe initiated.`);
+      logger.info(`[S3:Download:${key}] Pipe initiated.`);
     });
 
-    console.log(`[S3] Download complete: ${downloadPath}`);
+    logger.info(`[S3] Download complete: ${downloadPath}`);
   } catch (error: any) {
-    console.error(
+    logger.error(
       `[S3] Download failed for s3://${bucket}/${key}:`,
       error.message || error,
     );
     try {
       await stat(downloadPath);
       await unlink(downloadPath);
-      console.log(`[S3] Cleaned up partial download: ${downloadPath}`);
+      logger.info(`[S3] Cleaned up partial download: ${downloadPath}`);
     } catch (cleanupError: any) {
       if (cleanupError.code !== 'ENOENT') {
-        console.error(
+        logger.error(
           `[S3] Error cleaning up partial download ${downloadPath}:`,
           cleanupError.message,
         );
@@ -120,12 +121,12 @@ export async function uploadToS3(
   filePath: string,
   contentType: string,
 ): Promise<string | undefined> {
-  console.log(`[S3] Attempting upload: ${filePath} -> s3://${bucket}/${key}`);
+  logger.info(`[S3] Attempting upload: ${filePath} -> s3://${bucket}/${key}`);
   let fileStream;
   try {
     const fileStats = await stat(filePath);
     if (fileStats.size === 0) {
-      console.warn(`[S3] Skipping upload of zero-byte file: ${filePath}`);
+      logger.warn(`[S3] Skipping upload of zero-byte file: ${filePath}`);
       return undefined;
     }
 
@@ -139,10 +140,10 @@ export async function uploadToS3(
     });
 
     const result = await s3Client.send(command);
-    console.log(`[S3] Upload complete for ${key}. ETag: ${result.ETag}`);
+    logger.info(`[S3] Upload complete for ${key}. ETag: ${result.ETag}`);
     return result.ETag;
   } catch (error: any) {
-    console.error(
+    logger.error(
       `[S3] Upload failed for ${filePath} to key ${key}:`,
       error.message || error,
     );
@@ -162,13 +163,13 @@ export async function uploadToS3(
  * @param key The S3 object key to delete.
  */
 export async function deleteFromS3(bucket: string, key: string): Promise<void> {
-  console.log(`[S3] Attempting delete: s3://${bucket}/${key}`);
+  logger.info(`[S3] Attempting delete: s3://${bucket}/${key}`);
   try {
     const command = new DeleteObjectCommand({ Bucket: bucket, Key: key });
     await s3Client.send(command);
-    console.log(`[S3] Deletion complete for ${key}`);
+    logger.info(`[S3] Deletion complete for ${key}`);
   } catch (error: any) {
-    console.error(
+    logger.error(
       `[S3] Deletion failed for key ${key}:`,
       error.message || error,
     );

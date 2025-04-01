@@ -4,6 +4,7 @@ import { mkdir, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 
+import { logger } from '../config/logger';
 import { VideoUploadPayload } from '../consumers/VideoProcessingConsumer';
 import { db } from '../db';
 import { videos, VideoStatus } from '../db/schema';
@@ -50,7 +51,7 @@ export const handleVideoUploadEvent = async (
       existingVideo?.status &&
       ['PROCESSING', 'READY', 'ERROR'].includes(existingVideo.status)
     ) {
-      console.warn(
+      logger.warn(
         `[Handler:${videoId}] Video already processed or is processing (status: ${existingVideo.status}). Skipping duplicate message.`,
       );
 
@@ -58,7 +59,7 @@ export const handleVideoUploadEvent = async (
     }
 
     if (!existingVideo) {
-      console.error(
+      logger.error(
         `[Handler:${videoId}] Video record not found in DB. Cannot process. NACKing message.`,
       );
 
@@ -75,7 +76,7 @@ export const handleVideoUploadEvent = async (
       return false;
     }
   } catch (dbError: any) {
-    console.error(
+    logger.error(
       `[Handler:${videoId}] DB error during idempotency check:`,
       dbError.message,
     );
@@ -83,7 +84,7 @@ export const handleVideoUploadEvent = async (
     return false;
   }
 
-  console.log(`[Handler:${videoId}] Processing job. Temp dir: ${jobTempDir}`);
+  logger.info(`[Handler:${videoId}] Processing job. Temp dir: ${jobTempDir}`);
 
   let dbStatusUpdate: {
     status: VideoStatus;
@@ -102,23 +103,23 @@ export const handleVideoUploadEvent = async (
   try {
     await mkdir(TEMP_BASE_DIR, { recursive: true });
     await mkdir(jobTempDir, { recursive: true });
-    console.log(`[Handler:${videoId}] Created temp directory.`);
+    logger.info(`[Handler:${videoId}] Created temp directory.`);
 
-    console.log(`[Handler:${videoId}] Setting status to PROCESSING...`);
+    logger.info(`[Handler:${videoId}] Setting status to PROCESSING...`);
     await db
       .update(videos)
       .set({ status: 'PROCESSING' })
       .where(eq(videos.id, videoId));
-    console.log(`[Handler:${videoId}] Status set to PROCESSING.`);
+    logger.info(`[Handler:${videoId}] Status set to PROCESSING.`);
 
     await downloadFromS3(
       ENV.AWS_S3_BUCKET_NAME,
       originalS3Key,
       localOriginalPath,
     );
-    console.log(`[Handler:${videoId}] Original video downloaded.`);
+    logger.info(`[Handler:${videoId}] Original video downloaded.`);
 
-    console.log(`[Handler:${videoId}] Starting parallel processing tasks...`);
+    logger.info(`[Handler:${videoId}] Starting parallel processing tasks...`);
     const processingTasks: [
       Promise<TranscodeResult>,
       Promise<TranscodeResult>,
@@ -148,9 +149,9 @@ export const handleVideoUploadEvent = async (
 
     const [result720p, result480p, resultThumbnail] =
       await Promise.all(processingTasks);
-    console.log(`[Handler:${videoId}] FFmpeg processing complete.`);
+    logger.info(`[Handler:${videoId}] FFmpeg processing complete.`);
 
-    console.log(
+    logger.info(
       `[Handler:${videoId}] Starting parallel S3 uploads for processed files...`,
     );
     const uploadTasks = [
@@ -175,7 +176,7 @@ export const handleVideoUploadEvent = async (
     ];
 
     await Promise.all(uploadTasks);
-    console.log(`[Handler:${videoId}] S3 uploads complete.`);
+    logger.info(`[Handler:${videoId}] S3 uploads complete.`);
 
     dbStatusUpdate = {
       status: 'READY',
@@ -185,14 +186,14 @@ export const handleVideoUploadEvent = async (
       s3KeyThumbnail: resultThumbnail.s3Key,
     };
 
-    console.log(`[Handler:${videoId}] Processing successful.`);
+    logger.info(`[Handler:${videoId}] Processing successful.`);
     return true;
   } catch (error: any) {
-    console.error(
+    logger.error(
       `[Handler:${videoId}] ERROR during processing:`,
       error.message || error,
     );
-    console.error(error.stack);
+    logger.error(error.stack);
     processingError = error;
 
     dbStatusUpdate = { status: 'ERROR' };
@@ -200,7 +201,7 @@ export const handleVideoUploadEvent = async (
     return false;
   } finally {
     if (dbStatusUpdate) {
-      console.log(
+      logger.info(
         `[Handler:${videoId}] Updating final DB status to ${dbStatusUpdate.status}...`,
       );
       try {
@@ -208,12 +209,12 @@ export const handleVideoUploadEvent = async (
           .update(videos)
           .set(dbStatusUpdate)
           .where(eq(videos.id, videoId));
-        console.log(
+        logger.info(
           `[Handler:${videoId}] Final DB status updated successfully.`,
         );
 
         if (!processingError && dbStatusUpdate.status === 'READY') {
-          console.log(`[Handler:${videoId}] Publishing SUCCESS event...`);
+          logger.info(`[Handler:${videoId}] Publishing SUCCESS event...`);
           await videoEventProducer.publishVideoEvent(
             VIDEO_PROCESSING_COMPLETED_ROUTING_KEY,
             {
@@ -227,7 +228,7 @@ export const handleVideoUploadEvent = async (
             },
           );
         } else if (processingError) {
-          console.log(`[Handler:${videoId}] Publishing FAILURE event...`);
+          logger.info(`[Handler:${videoId}] Publishing FAILURE event...`);
 
           let errorDetails = {
             message: processingError.message || 'Unknown processing error',
@@ -244,13 +245,13 @@ export const handleVideoUploadEvent = async (
           );
         }
       } catch (dbError: any) {
-        console.error(
+        logger.error(
           `[Handler:${videoId}] FAILED to update final DB status to ${dbStatusUpdate.status}:`,
           dbError.message,
         );
       }
     } else {
-      console.warn(
+      logger.warn(
         `[Handler:${videoId}] No final DB status update was prepared. This might indicate an early error before processing status was set.`,
       );
       if (processingError) {
@@ -271,16 +272,16 @@ export const handleVideoUploadEvent = async (
       }
     }
 
-    console.log(
+    logger.info(
       `[Handler:${videoId}] Cleaning up temporary directory: ${jobTempDir}`,
     );
     await rm(jobTempDir, { recursive: true, force: true }).catch((err) => {
-      console.error(
+      logger.error(
         `[Handler:${videoId}] Error cleaning up temp directory ${jobTempDir}:`,
         err,
       );
     });
 
-    console.log(`[Handler:${videoId}] Finished job.`);
+    logger.info(`[Handler:${videoId}] Finished job.`);
   }
 };

@@ -1,6 +1,7 @@
 import { drizzle } from 'drizzle-orm/mysql2';
 import mysql from 'mysql2/promise';
 
+import { logger } from '../config/logger';
 import * as schema from './schema';
 import { ENV } from '../config/env';
 
@@ -15,22 +16,22 @@ const poolConnection = mysql.createPool({
   queueLimit: 0,
 });
 
-console.log(
+logger.info(
   `[DB] Creating connection pool for ${ENV.DB_USER}@${ENV.DB_HOST}:${ENV.DB_PORT}/${ENV.DB_NAME}`,
 );
 
 export const db = drizzle(poolConnection, { schema, mode: 'default' });
 
-console.log('[DB] Drizzle ORM initialized.');
+logger.info('[DB] Drizzle ORM initialized.');
 
 export { schema };
 
 export async function closeDbConnection(): Promise<void> {
-  console.log('[DB] Closing database connection pool...');
+  logger.info('[DB] Closing database connection pool...');
   try {
     await poolConnection.end();
-    console.log('[DB] Database connection pool closed.');
+    logger.info('[DB] Database connection pool closed.');
   } catch (error: any) {
-    console.error('[DB] Error closing connection pool:', error.message);
+    logger.error('[DB] Error closing connection pool:', error.message);
   }
 }
