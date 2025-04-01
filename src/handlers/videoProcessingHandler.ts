@@ -5,8 +5,8 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 
 import { VideoUploadPayload } from '../consumers/VideoProcessingConsumer';
-import { db, schema } from '../db';
-import { VideoStatus } from '../db/schema';
+import { db } from '../db';
+import { videos, VideoStatus } from '../db/schema';
 import { ENV } from '../config/env';
 import {
   S3_PROCESSED_PREFIX,
@@ -43,7 +43,7 @@ export const handleVideoUploadEvent = async (
   try {
     const existingVideo = await db.query.videos.findFirst({
       columns: { status: true },
-      where: eq(schema.videos, videoId),
+      where: eq(videos, videoId),
     });
 
     if (
@@ -106,9 +106,9 @@ export const handleVideoUploadEvent = async (
 
     console.log(`[Handler:${videoId}] Setting status to PROCESSING...`);
     await db
-      .update(schema.videos)
+      .update(videos)
       .set({ status: 'PROCESSING' })
-      .where(eq(schema.videos.id, videoId));
+      .where(eq(videos.id, videoId));
     console.log(`[Handler:${videoId}] Status set to PROCESSING.`);
 
     await downloadFromS3(
@@ -205,9 +205,9 @@ export const handleVideoUploadEvent = async (
       );
       try {
         await db
-          .update(schema.videos)
+          .update(videos)
           .set(dbStatusUpdate)
-          .where(eq(schema.videos.id, videoId));
+          .where(eq(videos.id, videoId));
         console.log(
           `[Handler:${videoId}] Final DB status updated successfully.`,
         );

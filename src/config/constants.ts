@@ -6,6 +6,8 @@ export const VIDEO_PROCESSING_COMPLETED_ROUTING_KEY =
   'video.processing.completed';
 
 export const VIDEO_PROCESSING_QUEUE = 'video_processing_queue';
+export const VIDEO_PROCESSING_DLX = 'video_processing_dlx';
+export const VIDEO_PROCESSING_DLQ = 'video_processing_dlq';
 
 export const S3_PROCESSED_PREFIX = 'processed/';
 export const S3_THUMBNAIL_PREFIX = 'thumbnails/';

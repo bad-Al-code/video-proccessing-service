@@ -1,6 +1,10 @@
 import { Channel, ConsumeMessage } from 'amqplib';
 import { getRabbitMQChannel } from '../config/rabbitmq-client';
 import { handleVideoUploadEvent } from '../handlers/videoProcessingHandler';
+import {
+  VIDEO_PROCESSING_DLQ,
+  VIDEO_PROCESSING_DLX,
+} from '../config/constants';
 
 export interface VideoUploadPayload {
   videoId: string;
@@ -33,19 +37,48 @@ export class VideoProcessingConsumer {
       }
 
       console.log(
-        `[Consumer] Asserting exchange '${this.exchangeName}' (topic, durable)`,
+        `[Consumer] Asserting Dead Letter Exchange '${VIDEO_PROCESSING_DLX}' (direct, durable)`,
+      );
+      await this.channel.assertExchange(VIDEO_PROCESSING_DLX, 'direct', {
+        durable: true,
+      });
+
+      console.log(
+        `[Consumer] Asserting Dead Letter Queue '${VIDEO_PROCESSING_DLQ}' (durable)`,
+      );
+      const dlq = await this.channel.assertQueue(VIDEO_PROCESSING_DLQ, {
+        durable: true,
+      });
+
+      console.log(
+        `[Consumer] Binding DLQ '${dlq.queue}' to DLX '${VIDEO_PROCESSING_DLX}' with binding key '${this.bindingKey}'`,
+      );
+      await this.channel.bindQueue(
+        dlq.queue,
+        VIDEO_PROCESSING_DLX,
+        this.bindingKey,
+      );
+
+      console.log(
+        `[Consumer] Asserting MAIN queue '${this.queueName}' (durable) with DLX configured`,
+      );
+      const q = await this.channel.assertQueue(this.queueName, {
+        durable: true,
+        arguments: {
+          'x-dead-letter-exchange': VIDEO_PROCESSING_DLX,
+          'x-dead-letter-routing-key': this.bindingKey,
+        },
+      });
+
+      console.log(
+        `[Consumer] Asserting MAIN exchange '${this.exchangeName}' (topic, durable)`,
       );
       await this.channel.assertExchange(this.exchangeName, 'topic', {
         durable: true,
       });
 
-      console.log(`[Consumer] Asserting queue '${this.queueName}' (durable)`);
-      const q = await this.channel.assertQueue(this.queueName, {
-        durable: true,
-      });
-
       console.log(
-        `[Consumer] Binding queue '${q.queue}' to exchange '${this.exchangeName}' with key '${this.bindingKey}'`,
+        `[Consumer] Binding MAIN queue '${q.queue}' to exchange '${this.exchangeName}' with key '${this.bindingKey}'`,
       );
       await this.channel.bindQueue(q.queue, this.exchangeName, this.bindingKey);
 
