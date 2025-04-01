@@ -228,12 +228,17 @@ export const handleVideoUploadEvent = async (
           );
         } else if (processingError) {
           console.log(`[Handler:${videoId}] Publishing FAILURE event...`);
+
+          let errorDetails = {
+            message: processingError.message || 'Unknown processing error',
+          };
+
           await videoEventProducer.publishVideoEvent(
             VIDEO_PROCESSING_FAILED_ROUTING_KEY,
             {
               videoId: videoId,
               status: 'ERROR',
-              error: processingError.message || 'Unknown processing error',
+              error: errorDetails,
               originalS3Key: originalS3Key,
             },
           );
@@ -249,12 +254,17 @@ export const handleVideoUploadEvent = async (
         `[Handler:${videoId}] No final DB status update was prepared. This might indicate an early error before processing status was set.`,
       );
       if (processingError) {
+        let errorDetails;
+        {
+          message: `Early failure: ${processingError.message} || 'Unknown processing error'}`;
+        }
+
         await videoEventProducer.publishVideoEvent(
           VIDEO_PROCESSING_FAILED_ROUTING_KEY,
           {
             videoId: videoId,
             status: 'ERROR',
-            error: `Early failure: ${processingError.message || 'Unknown processing error'}`,
+            error: errorDetails,
             originalS3Key: originalS3Key,
           },
         );
