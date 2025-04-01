@@ -43,7 +43,7 @@ export const handleVideoUploadEvent = async (
   try {
     const existingVideo = await db.query.videos.findFirst({
       columns: { status: true },
-      where: eq(videos, videoId),
+      where: eq(videos.id, videoId),
     });
 
     if (
