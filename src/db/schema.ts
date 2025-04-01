@@ -6,6 +6,8 @@ import {
   mysqlEnum,
   text,
   timestamp,
+  json,
+  int,
 } from 'drizzle-orm/mysql-core';
 
 export const videoStatuses = [
@@ -16,6 +18,8 @@ export const videoStatuses = [
   'ERROR',
   'UPLOADED',
 ] as const;
+
+export type VideoStatus = (typeof videoStatuses)[number];
 
 export const videos = mysqlTable('videos', {
   id: varchar('id', { length: 36 }).primaryKey(),
@@ -32,6 +36,16 @@ export const videos = mysqlTable('videos', {
     mode: 'number',
     unsigned: true,
   }),
+  originalWidth: bigint('original_width', {
+    mode: 'number',
+    unsigned: true,
+  }),
+
+  originalHeight: bigint('original_height', {
+    mode: 'number',
+    unsigned: true,
+  }),
+
   createdAt: timestamp('created_at')
     .default(sql`CURRENT_TIMESTAMP`)
     .notNull(),
@@ -41,9 +55,12 @@ export const videos = mysqlTable('videos', {
     .notNull(),
   uploadedAt: timestamp('uploaded_at'),
   processedAt: timestamp('processed_at'),
+
+  s3KeysMp4: json('s3_keys_mp4'),
+  s3KeysThumbnails: json('s3_keys_thumbnails'),
+  s3KeyHlsManifest: varchar('s3_key_hls_manifest', { length: 1024 }),
+
   s3Key720p: varchar('s3_key_720p', { length: 1024 }),
   s3Key480p: varchar('s3_key_480p', { length: 1024 }),
   s3KeyThumbnail: varchar('s3_key_thumbnail', { length: 1024 }),
 });
-
-export type VideoStatus = (typeof videoStatuses)[number];
