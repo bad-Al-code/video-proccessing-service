@@ -6,10 +6,7 @@ vi.mock('node:fs/promises', () => {
   const mockRm = vi.fn().mockResolvedValue(undefined);
   return {
     __esModule: true,
-    default: {
-      mkdir: mockMkdir,
-      rm: mockRm,
-    },
+    default: { mkdir: mockMkdir, rm: mockRm },
     mkdir: mockMkdir,
     rm: mockRm,
     _mockMkdir: mockMkdir,
@@ -28,30 +25,39 @@ const mockDbUpdateSet = vi.fn(() => ({ where: mockDbUpdateSetWhere }));
 const mockDbUpdate = vi.fn(() => ({ set: mockDbUpdateSet }));
 const mockDb = { update: mockDbUpdate };
 const mockSchema = { videos: { id: 'videos.id' } };
-const mockEq = vi.fn((field, value) => `mockEq(${field}, ${value})`);
-vi.mock('../db', () => ({
+
+vi.mock('../../src/db', () => ({
   db: mockDb,
   schema: mockSchema,
-  eq: mockEq,
+  closeDbConnection: vi.fn().mockResolvedValue(undefined),
 }));
+
+let mockEq: Mock = vi.fn();
+vi.mock('drizzle-orm', async (importOriginal) => {
+  const original = await importOriginal<typeof import('drizzle-orm')>();
+  const mockEqFn = vi.fn(
+    (field, value) => `mockEq(${String(field)}, ${String(value)})`,
+  );
+  mockEq = mockEqFn;
+  return {
+    ...original,
+    eq: mockEqFn,
+  };
+});
 
 const MOCK_BUCKET = 'mock-video-bucket';
 const mockEnv = {
   AWS_S3_BUCKET_NAME: MOCK_BUCKET,
 };
-vi.mock('../config/env', () => ({
+vi.mock('../../src/config/env', () => ({
   ENV: mockEnv,
 }));
 
-vi.mock('../utils/s3Utils', () => {
+vi.mock('../../src/utils/s3.util', () => {
   const mockDownloadFromS3 = vi.fn().mockResolvedValue(undefined);
   const mockUploadToS3 = vi.fn().mockResolvedValue('mock-etag-123');
   return {
     __esModule: true,
-    default: {
-      downloadFromS3: mockDownloadFromS3,
-      uploadToS3: mockUploadToS3,
-    },
     downloadFromS3: mockDownloadFromS3,
     uploadToS3: mockUploadToS3,
     _mockDownloadFromS3: mockDownloadFromS3,
@@ -63,7 +69,7 @@ const s3UtilsMocks = await vi.importMock<
     _mockDownloadFromS3: Mock;
     _mockUploadToS3: Mock;
   }
->('../utils/s3Utils');
+>('../../src/utils/s3.util');
 const mockDownloadFromS3 = s3UtilsMocks._mockDownloadFromS3;
 const mockUploadToS3 = s3UtilsMocks._mockUploadToS3;
 
@@ -84,18 +90,11 @@ const mockThumbnailResult = {
     '/tmp/video-processing-service/test-video-id/test-video-id_thumbnail.jpg',
   s3Key: 'thumbnails/test-video-id/test-video-id_thumbnail.jpg',
 };
-vi.mock('../utils/ffmpegUtils', () => {
-  const mockTranscodeToResolution = vi
-    .fn()
-    .mockResolvedValueOnce(mockTranscodeResult720)
-    .mockResolvedValueOnce(mockTranscodeResult480);
-  const mockGenerateThumbnail = vi.fn().mockResolvedValue(mockThumbnailResult);
+vi.mock('../../src/utils/ffmpeg.util', () => {
+  const mockTranscodeToResolution = vi.fn();
+  const mockGenerateThumbnail = vi.fn();
   return {
     __esModule: true,
-    default: {
-      transcodeToResolution: mockTranscodeToResolution,
-      generateThumbnail: mockGenerateThumbnail,
-    },
     transcodeToResolution: mockTranscodeToResolution,
     generateThumbnail: mockGenerateThumbnail,
     _mockTranscodeToResolution: mockTranscodeToResolution,
@@ -107,12 +106,12 @@ const ffmpegUtilsMocks = await vi.importMock<
     _mockTranscodeToResolution: Mock;
     _mockGenerateThumbnail: Mock;
   }
->('../utils/ffmpegUtils');
+>('../../src/utils/ffmpeg.util');
 const mockTranscodeToResolution = ffmpegUtilsMocks._mockTranscodeToResolution;
 const mockGenerateThumbnail = ffmpegUtilsMocks._mockGenerateThumbnail;
 
 const mockPublishVideoEvent = vi.fn().mockResolvedValue(true);
-vi.mock('../producers/VideoEventProducer', () => ({
+vi.mock('../../src/producers/videoEvent.producer', () => ({
   videoEventProducer: {
     publishVideoEvent: mockPublishVideoEvent,
   },
@@ -123,6 +122,7 @@ import {
   VIDEO_PROCESSING_COMPLETED_ROUTING_KEY,
   VIDEO_PROCESSING_FAILED_ROUTING_KEY,
 } from '../../src/config/constants';
+import { VideoStatus } from '../../src/db/schema';
 
 describe('handleVideoUploadEvent', () => {
   const mockPayload = {
@@ -131,22 +131,30 @@ describe('handleVideoUploadEvent', () => {
     originalFilename: 'test-original.mp4',
     mimeType: 'video/mp4',
   };
-  const mockConsumeMsg = {} as ConsumeMessage;
+  const mockConsumeMsg = {
+    fields: { deliveryTag: 1 },
+    properties: {},
+    content: Buffer.from(JSON.stringify(mockPayload)),
+  } as unknown as ConsumeMessage;
 
   beforeEach(() => {
-    mockMkdir.mockClear().mockResolvedValue(undefined);
-    mockRm.mockClear().mockResolvedValue(undefined);
-    mockDownloadFromS3.mockClear().mockResolvedValue(undefined);
-    mockUploadToS3.mockClear().mockResolvedValue('mock-etag-123');
+    vi.clearAllMocks();
+
+    mockMkdir.mockResolvedValue(undefined);
+    mockRm.mockResolvedValue(undefined);
+    mockDownloadFromS3.mockResolvedValue(undefined);
+    mockUploadToS3.mockResolvedValue('mock-etag-123');
+    mockDbUpdateSetWhere.mockResolvedValue({ rowCount: 1 });
+    mockPublishVideoEvent.mockResolvedValue(true);
+    mockEq.mockClear();
+
     mockTranscodeToResolution
-      .mockClear()
       .mockResolvedValueOnce(mockTranscodeResult720)
       .mockResolvedValueOnce(mockTranscodeResult480);
-    mockGenerateThumbnail.mockClear().mockResolvedValue(mockThumbnailResult);
-    mockDbUpdateSetWhere.mockClear().mockResolvedValue({ rowCount: 1 });
-    mockDbUpdate.mockClear();
-    mockDbUpdateSet.mockClear();
-    mockPublishVideoEvent.mockClear().mockResolvedValue(true);
+    mockGenerateThumbnail.mockResolvedValue(mockThumbnailResult);
+
+    mockDbUpdate.mockReturnValue({ set: mockDbUpdateSet });
+    mockDbUpdateSet.mockReturnValue({ where: mockDbUpdateSetWhere });
   });
 
   it('should process video successfully, update DB, publish event, and return true', async () => {
@@ -156,7 +164,7 @@ describe('handleVideoUploadEvent', () => {
 
     expect(mockDbUpdate).toHaveBeenCalledTimes(2);
     expect(mockDbUpdateSet).toHaveBeenNthCalledWith(1, {
-      status: 'PROCESSING',
+      status: 'PROCESSING' as VideoStatus,
     });
     expect(mockDbUpdateSetWhere).toHaveBeenNthCalledWith(
       1,
@@ -165,7 +173,7 @@ describe('handleVideoUploadEvent', () => {
     expect(mockDbUpdateSet).toHaveBeenNthCalledWith(
       2,
       expect.objectContaining({
-        status: 'READY',
+        status: 'READY' as VideoStatus,
         processedAt: expect.any(Date),
         s3Key720p: mockTranscodeResult720.s3Key,
         s3Key480p: mockTranscodeResult480.s3Key,
@@ -175,6 +183,13 @@ describe('handleVideoUploadEvent', () => {
     expect(mockDbUpdateSetWhere).toHaveBeenNthCalledWith(
       2,
       mockEq(mockSchema.videos.id, mockPayload.videoId),
+    );
+
+    expect(mockMkdir).toHaveBeenCalledTimes(2);
+    expect(mockRm).toHaveBeenCalledOnce();
+    expect(mockRm).toHaveBeenCalledWith(
+      expect.stringContaining(mockPayload.videoId),
+      { recursive: true, force: true },
     );
 
     expect(mockDownloadFromS3).toHaveBeenCalledOnce();
@@ -203,8 +218,32 @@ describe('handleVideoUploadEvent', () => {
       'image/jpeg',
     );
 
+    const expectedS3Key720p = `processed/${mockPayload.videoId}/${mockPayload.videoId}_720p.mp4`;
+    const expectedS3Key480p = `processed/${mockPayload.videoId}/${mockPayload.videoId}_480p.mp4`;
+    const expectedS3KeyThumb = `thumbnails/${mockPayload.videoId}/${mockPayload.videoId}_thumbnail.jpg`;
+
     expect(mockTranscodeToResolution).toHaveBeenCalledTimes(2);
+    expect(mockTranscodeToResolution).toHaveBeenCalledWith(
+      expect.stringContaining(`original_${mockPayload.originalFilename}`),
+      expect.stringContaining(mockPayload.videoId),
+      '720p',
+      mockPayload.videoId,
+      expectedS3Key720p,
+    );
+    expect(mockTranscodeToResolution).toHaveBeenCalledWith(
+      expect.stringContaining(`original_${mockPayload.originalFilename}`),
+      expect.stringContaining(mockPayload.videoId),
+      '480p',
+      mockPayload.videoId,
+      expectedS3Key480p,
+    );
     expect(mockGenerateThumbnail).toHaveBeenCalledOnce();
+    expect(mockGenerateThumbnail).toHaveBeenCalledWith(
+      expect.stringContaining(`original_${mockPayload.originalFilename}`),
+      expect.stringContaining(mockPayload.videoId),
+      mockPayload.videoId,
+      expectedS3KeyThumb,
+    );
 
     expect(mockPublishVideoEvent).toHaveBeenCalledOnce();
     expect(mockPublishVideoEvent).toHaveBeenCalledWith(
@@ -218,13 +257,6 @@ describe('handleVideoUploadEvent', () => {
           s3KeyThumbnail: mockThumbnailResult.s3Key,
         },
       }),
-    );
-
-    expect(mockMkdir).toHaveBeenCalledTimes(2);
-    expect(mockRm).toHaveBeenCalledOnce();
-    expect(mockRm).toHaveBeenCalledWith(
-      expect.stringContaining(mockPayload.videoId),
-      { recursive: true, force: true },
     );
   });
 
@@ -241,6 +273,7 @@ describe('handleVideoUploadEvent', () => {
       status: 'PROCESSING',
     });
     expect(mockDbUpdateSet).toHaveBeenNthCalledWith(2, { status: 'ERROR' });
+    expect(mockDbUpdateSetWhere).toHaveBeenCalledTimes(2);
 
     expect(mockPublishVideoEvent).toHaveBeenCalledOnce();
     expect(mockPublishVideoEvent).toHaveBeenCalledWith(
@@ -256,15 +289,13 @@ describe('handleVideoUploadEvent', () => {
     expect(mockTranscodeToResolution).not.toHaveBeenCalled();
     expect(mockGenerateThumbnail).not.toHaveBeenCalled();
     expect(mockUploadToS3).not.toHaveBeenCalled();
-
     expect(mockRm).toHaveBeenCalledOnce();
   });
 
   it('should return false, update DB to ERROR, and publish fail event if transcoding fails', async () => {
     const transcodeError = new Error('FFmpeg Invalid Input');
-    (mockTranscodeToResolution as Mock)
-      .mockReset()
-      .mockRejectedValueOnce(transcodeError);
+    mockTranscodeToResolution.mockReset();
+    mockTranscodeToResolution.mockRejectedValueOnce(transcodeError);
 
     const result = await handleVideoUploadEvent(mockPayload, mockConsumeMsg);
 
@@ -287,12 +318,12 @@ describe('handleVideoUploadEvent', () => {
     );
 
     expect(mockUploadToS3).not.toHaveBeenCalled();
-
     expect(mockRm).toHaveBeenCalledOnce();
   });
 
   it('should return false, update DB to ERROR, and publish fail event if S3 upload fails', async () => {
     const uploadError = new Error('S3 Upload Timeout');
+    mockUploadToS3.mockReset();
     mockUploadToS3
       .mockResolvedValueOnce('etag-1')
       .mockRejectedValueOnce(uploadError)
@@ -318,15 +349,18 @@ describe('handleVideoUploadEvent', () => {
       }),
     );
 
+    expect(mockUploadToS3).toHaveBeenCalledTimes(3);
     expect(mockRm).toHaveBeenCalledOnce();
   });
 
-  it('should return true but log error if final DB update to READY fails', async () => {
-    const dbUpdateError = new Error('DB connection lost');
-    mockDbUpdateSetWhere.mockResolvedValueOnce({ rowCount: 1 });
-    mockDbUpdateSetWhere.mockRejectedValueOnce(dbUpdateError);
+  it('should return true but NOT publish event and log error if final DB update to READY fails', async () => {
+    mockDbUpdateSetWhere
+      .mockResolvedValueOnce({ rowCount: 1 })
+      .mockRejectedValueOnce(new Error('DB connection lost'));
 
-    const consoleErrorSpy = vi.spyOn(console, 'error');
+    const consoleErrorSpy = vi
+      .spyOn(console, 'error')
+      .mockImplementation(() => {});
 
     const result = await handleVideoUploadEvent(mockPayload, mockConsumeMsg);
 
@@ -340,27 +374,44 @@ describe('handleVideoUploadEvent', () => {
       2,
       expect.objectContaining({ status: 'READY' }),
     );
+    expect(mockDbUpdateSetWhere).toHaveBeenCalledTimes(2);
 
     expect(consoleErrorSpy).toHaveBeenCalledWith(
-      expect.stringContaining('FAILED to update final DB status to READY'),
-      dbUpdateError.message,
+      expect.stringContaining(
+        `[Handler:${mockPayload.videoId}] FAILED to update final DB status to READY`,
+      ),
+      'DB connection lost',
     );
 
     expect(mockPublishVideoEvent).not.toHaveBeenCalled();
-
     expect(mockRm).toHaveBeenCalledOnce();
-
     consoleErrorSpy.mockRestore();
   });
 
-  it('should return true and log warning if SUCCESS event publishing fails', async () => {
+  it('should return true and log warning if SUCCESS event publishing fails but DB update succeeds', async () => {
     mockPublishVideoEvent.mockResolvedValueOnce(false);
 
-    const consoleWarnSpy = vi.spyOn(console, 'warn');
+    const consoleWarnSpy = vi
+      .spyOn(console, 'warn')
+      .mockImplementation(() => {});
+    const consoleErrorSpy = vi
+      .spyOn(console, 'error')
+      .mockImplementation(() => {});
 
     const result = await handleVideoUploadEvent(mockPayload, mockConsumeMsg);
 
     expect(result).toBe(true);
+
+    expect(mockDbUpdate).toHaveBeenCalledTimes(2);
+    expect(mockDbUpdateSet).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ status: 'READY' }),
+    );
+    expect(mockDbUpdateSetWhere).toHaveBeenCalledTimes(2);
+    expect(mockDbUpdateSetWhere).toHaveBeenNthCalledWith(
+      2,
+      mockEq(mockSchema.videos.id, mockPayload.videoId),
+    );
 
     expect(mockPublishVideoEvent).toHaveBeenCalledOnce();
     expect(mockPublishVideoEvent).toHaveBeenCalledWith(
@@ -368,13 +419,51 @@ describe('handleVideoUploadEvent', () => {
       expect.anything(),
     );
 
-    expect(mockDbUpdateSet).toHaveBeenNthCalledWith(
-      2,
-      expect.objectContaining({ status: 'READY' }),
+    expect(mockRm).toHaveBeenCalledOnce();
+    consoleWarnSpy.mockRestore();
+    consoleErrorSpy.mockRestore();
+  });
+
+  it('should return false and publish FAILURE event if DB update to PROCESSING fails', async () => {
+    const dbProcessingUpdateError = new Error('Initial DB Update Failed');
+    mockDbUpdateSetWhere.mockRejectedValueOnce(dbProcessingUpdateError);
+
+    const consoleErrorSpy = vi
+      .spyOn(console, 'error')
+      .mockImplementation(() => {});
+
+    const result = await handleVideoUploadEvent(mockPayload, mockConsumeMsg);
+
+    expect(result).toBe(false);
+
+    expect(mockDbUpdate).toHaveBeenCalledOnce();
+    expect(mockDbUpdateSet).toHaveBeenCalledOnce();
+    expect(mockDbUpdateSet).toHaveBeenCalledWith({ status: 'PROCESSING' });
+    expect(mockDbUpdateSetWhere).toHaveBeenCalledOnce();
+
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
+      expect.stringContaining(
+        `[Handler:${mockPayload.videoId}] ERROR during processing:`,
+      ),
+      dbProcessingUpdateError.message,
     );
 
-    expect(mockRm).toHaveBeenCalledOnce();
+    expect(mockPublishVideoEvent).toHaveBeenCalledOnce();
+    expect(mockPublishVideoEvent).toHaveBeenCalledWith(
+      VIDEO_PROCESSING_FAILED_ROUTING_KEY,
+      expect.objectContaining({
+        videoId: mockPayload.videoId,
+        status: 'ERROR',
+        error: `Early failure: ${dbProcessingUpdateError.message}`,
+        originalS3Key: mockPayload.s3Key,
+      }),
+    );
 
-    consoleWarnSpy.mockRestore();
+    expect(mockDownloadFromS3).not.toHaveBeenCalled();
+    expect(mockTranscodeToResolution).not.toHaveBeenCalled();
+    expect(mockGenerateThumbnail).not.toHaveBeenCalled();
+    expect(mockUploadToS3).not.toHaveBeenCalled();
+    expect(mockRm).toHaveBeenCalledOnce();
+    consoleErrorSpy.mockRestore();
   });
 });
