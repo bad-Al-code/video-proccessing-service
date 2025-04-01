@@ -40,6 +40,49 @@ export const handleVideoUploadEvent = async (
     `original_${safeOriginalFilename}`,
   );
 
+  try {
+    const existingVideo = await db.query.videos.findFirst({
+      columns: { status: true },
+      where: eq(schema.videos, videoId),
+    });
+
+    if (
+      existingVideo?.status &&
+      ['PROCESSING', 'READY', 'ERROR'].includes(existingVideo.status)
+    ) {
+      console.warn(
+        `[Handler:${videoId}] Video already processed or is processing (status: ${existingVideo.status}). Skipping duplicate message.`,
+      );
+
+      return true;
+    }
+
+    if (!existingVideo) {
+      console.error(
+        `[Handler:${videoId}] Video record not found in DB. Cannot process. NACKing message.`,
+      );
+
+      await videoEventProducer.publishVideoEvent(
+        VIDEO_PROCESSING_FAILED_ROUTING_KEY,
+        {
+          videoId: videoId,
+          status: 'ERROR',
+          error: 'Video record not found in database',
+          originalS3Key,
+        },
+      );
+
+      return false;
+    }
+  } catch (dbError: any) {
+    console.error(
+      `[Handler:${videoId}] DB error during idempotency check:`,
+      dbError.message,
+    );
+
+    return false;
+  }
+
   console.log(`[Handler:${videoId}] Processing job. Temp dir: ${jobTempDir}`);
 
   let dbStatusUpdate: {
