@@ -1,3 +1,5 @@
+import { Buffer } from 'node:buffer';
+
 import { getRabbitMQChannel } from '../config/rabbitmq-client';
 import { VIDEO_EVENTS_EXCHANGE } from '../config/constants';
 import { logger } from '../config/logger';
@@ -18,47 +20,49 @@ export class VideoEventProducer {
     eventPayload: any,
   ): Promise<boolean> {
     const channel = getRabbitMQChannel();
+    const logCtx = { routingKey, videoId: eventPayload?.videoId };
 
     if (!channel) {
       logger.error(
-        `[VideoEventProducer] Cannot publish event, channel is not available. RoutingKey: ${routingKey}`,
+        logCtx,
+        '[VideoEventProducer] Cannot publish event, channel is not available.',
       );
       return false;
     }
 
     try {
-      await channel.assertExchange(VIDEO_EVENTS_EXCHANGE, 'topic', {
-        durable: true,
-      });
+      const messageString = JSON.stringify(eventPayload);
+      const messageBuffer = Buffer.from(messageString);
 
-      const messageBuffer = Buffer.from(JSON.stringify(eventPayload));
+      logger.debug(
+        { ...logCtx, payloadSize: messageBuffer.length },
+        `[VideoEventProducer] Publishing event payload`,
+      );
 
       const sent = channel.publish(
         VIDEO_EVENTS_EXCHANGE,
         routingKey,
         messageBuffer,
-        { persistent: true },
+        { persistent: true, contentType: 'application/json' },
       );
 
       if (sent) {
         logger.info(
-          `[VideoEventProducer] Published event to exchange '${VIDEO_EVENTS_EXCHANGE}' [${routingKey}]:`,
-          JSON.stringify(eventPayload).substring(0, 200) +
-            (JSON.stringify(eventPayload).length > 200 ? '...' : ''),
+          logCtx,
+          `[VideoEventProducer] Published event successfully to exchange '${VIDEO_EVENTS_EXCHANGE}'`,
         );
       } else {
         logger.warn(
-          `[VideoEventProducer] Failed to publish event [${routingKey}] (channel buffer full or closing?). Payload:`,
-          eventPayload,
+          logCtx,
+          `[VideoEventProducer] Failed to publish event (channel buffer full or closing?). Event lost.`,
         );
       }
       return sent;
     } catch (error: any) {
       logger.error(
-        `[VideoEventProducer] Error publishing event [${routingKey}]:`,
-        error.message || error,
+        { ...logCtx, err: error.message, stack: error.stack },
+        `[VideoEventProducer] Error publishing event`,
       );
-      logger.error(`[VideoEventProducer] Payload:`, eventPayload);
       return false;
     }
   }
