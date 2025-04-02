@@ -2,6 +2,7 @@ import { relations, sql } from 'drizzle-orm';
 import {
   mysqlTable,
   varchar,
+  json,
   bigint,
   mysqlEnum,
   text,
@@ -16,6 +17,21 @@ export const videoStatuses = [
   'ERROR',
   'UPLOADED',
 ] as const;
+
+export type VideoStatus = (typeof videoStatuses)[number];
+
+export type VideoMetadata = {
+  durationSeconds?: number | null;
+  width?: number | null;
+  height?: number | null;
+  formatName?: string | null;
+  bitRate?: number | null;
+} | null;
+
+export type ProcessedFiles = {
+  thumbnail?: string | null;
+  [resolution: number]: string;
+} | null;
 
 export const videos = mysqlTable('videos', {
   id: varchar('id', { length: 36 }).primaryKey(),
@@ -32,6 +48,9 @@ export const videos = mysqlTable('videos', {
     mode: 'number',
     unsigned: true,
   }),
+  metadata: json('metadata').$type<VideoMetadata>().default(null),
+  processedFiles: json('processed_files').$type<ProcessedFiles>().default(null),
+
   createdAt: timestamp('created_at')
     .default(sql`CURRENT_TIMESTAMP`)
     .notNull(),
@@ -41,9 +60,4 @@ export const videos = mysqlTable('videos', {
     .notNull(),
   uploadedAt: timestamp('uploaded_at'),
   processedAt: timestamp('processed_at'),
-  s3Key720p: varchar('s3_key_720p', { length: 1024 }),
-  s3Key480p: varchar('s3_key_480p', { length: 1024 }),
-  s3KeyThumbnail: varchar('s3_key_thumbnail', { length: 1024 }),
 });
-
-export type VideoStatus = (typeof videoStatuses)[number];
