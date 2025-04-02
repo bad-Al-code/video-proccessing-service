@@ -11,8 +11,8 @@ import {
 export interface VideoUploadPayload {
   videoId: string;
   s3Key: string;
-  originalFilename: string;
-  mimeType: string;
+  originalname: string;
+  mimetype: string;
 }
 
 export class VideoProcessingConsumer {

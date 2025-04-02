@@ -37,16 +37,16 @@ export const handleVideoUploadEvent = async (
   payload: VideoUploadPayload,
   msg: ConsumeMessage,
 ): Promise<boolean> => {
-  const { videoId, s3Key: originalS3Key, originalFilename, mimeType } = payload;
+  const { videoId, s3Key: originalS3Key, originalname, mimetype } = payload;
   const logCtx = {
     videoId,
     originalS3Key,
-    originalFilename,
+    originalname,
     deliveryTag: msg.fields.deliveryTag,
   };
   logger.info(logCtx, 'Received video upload event');
 
-  if (!videoId || !originalS3Key || !originalFilename || !mimeType) {
+  if (!videoId || !originalS3Key || !originalname || !mimetype) {
     logger.error(
       { ...logCtx, payload },
       'Invalid message payload received. Missing required fields.',
@@ -54,10 +54,7 @@ export const handleVideoUploadEvent = async (
     return false;
   }
 
-  const safeOriginalFilename = originalFilename.replace(
-    /[^a-zA-Z0-9._-]/g,
-    '_',
-  );
+  const safeOriginalFilename = originalname.replace(/[^a-zA-Z0-9._-]/g, '_');
   const jobTempDir = join(TEMP_BASE_DIR, videoId);
   const localOriginalPath = join(
     jobTempDir,
