@@ -22,18 +22,10 @@ const transport = isProduction
         colorize: true,
         translateTime: 'SYS:yyyy-mm-dd HH:MM:ss.l',
         ignore: 'pid,hostname,service',
+        messageFormat: '{service} - {msg}',
       },
     });
 
 export const logger = pino(loggerOptions, transport);
 
 logger.info('Structured logger initialized.');
-
-process.on('SIGINT', () => {
-  logger.flush();
-  process.exit(0);
-});
-process.on('SIGTERM', () => {
-  logger.flush();
-  process.exit(0);
-});
