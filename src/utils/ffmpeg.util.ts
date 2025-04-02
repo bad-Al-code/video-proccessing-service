@@ -114,7 +114,7 @@ export function getVideoMetadata(
         },
         '[FFPROBE] Extracted Metadata',
       );
-      resolve(metadata as any);
+      resolve(metadata);
     });
   });
 }
