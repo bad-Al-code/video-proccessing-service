@@ -1,4 +1,4 @@
-import Ffmpeg from 'fluent-ffmpeg';
+import Ffmpeg, { FfprobeData } from 'fluent-ffmpeg';
 import path, { join } from 'node:path';
 import { mkdir } from 'node:fs/promises';
 
@@ -14,7 +14,7 @@ export interface VideoMetadataProbe {
     start_time?: number;
     duration?: number;
     size?: number;
-    bit_rate?: string;
+    bit_rate?: number;
     probe_score?: number;
     tags?: Record<string, string>;
   };
@@ -99,7 +99,7 @@ export function getVideoMetadata(
   const logCtx = { videoId, inputPath };
   return new Promise((resolve, reject) => {
     logger.debug(logCtx, '[FFPROBE] Starting metadata extraction');
-    Ffmpeg.ffprobe(inputPath, (err, metadata) => {
+    Ffmpeg.ffprobe(inputPath, (err, metadata: FfprobeData) => {
       if (err) {
         logger.error({ ...logCtx, err }, '[FFPROBE] Error extracting metadata');
         return reject(new Error(`ffprobe failed: ${err.message}`));
@@ -109,12 +109,15 @@ export function getVideoMetadata(
       logger.debug(
         {
           ...logCtx,
-          format: metadata.format,
+          formatName: metadata.format.format_name,
+          duration: metadata.format.duration,
+          size: metadata.format.size,
+          bitrate: metadata.format.bit_rate,
           streamCount: metadata.streams?.length,
         },
         '[FFPROBE] Extracted Metadata',
       );
-      resolve(metadata);
+      resolve(metadata as VideoMetadataProbe);
     });
   });
 }
@@ -255,9 +258,11 @@ export function generateThumbnail(
             logCtx,
             `[FFMPEG] Thumbnail generated successfully: ${outputPath}`,
           );
-          if (stderr) {
+
+          const trimmedStderr = stderr?.trim();
+          if (trimmedStderr) {
             logger.debug(
-              { ...logCtx, stderr },
+              { ...logCtx, stderr: trimmedStderr },
               `[FFMPEG] stderr output for thumbnail (success)`,
             );
           }

@@ -137,15 +137,11 @@ export const handleVideoUploadEvent = async (
         (s) => s.codec_type === 'video',
       );
       extractedMetadata = {
-        durationSeconds: probeData.format.duration
-          ? parseFloat(probeData.format.duration)
-          : null,
+        durationSeconds: probeData.format.duration ?? null,
         width: videoStream?.width ?? null,
         height: videoStream?.height ?? null,
         formatName: probeData.format.format_name ?? null,
-        bitRate: probeData.format.bit_rate
-          ? parseInt(probeData.format.bit_rate, 10)
-          : null,
+        bitRate: probeData.format.bit_rate ?? null,
       };
 
       dbUpdateData.metadata = extractedMetadata;
